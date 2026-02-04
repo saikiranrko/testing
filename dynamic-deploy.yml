@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Albertsons Deployment Portal</title>
+    <title>Deployment Portal</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -80,13 +80,20 @@
             margin-top: 20px;
             display: none;
         }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Albertsons Deployment Portal</h1>
+        <h1>🚀 Deployment Portal</h1>
         
-        <form id="deploymentForm">
+        <div class="loading" id="loadingMsg">Loading configuration...</div>
+        
+        <form id="deploymentForm" style="display: none;">
             <div class="form-group">
                 <label for="region">1️⃣ Select Region:</label>
                 <select id="region" required>
@@ -123,13 +130,13 @@
             <div class="form-group">
                 <label for="token">GitHub Personal Access Token:</label>
                 <input type="password" id="token" required placeholder="ghp_xxxxxxxxxxxxx">
-                <small style="color: #666;">Token needs 'repo' and 'workflow' scopes</small>
+                <small style="color: #666;">Token needs 'repo' and 'workflow' scopes. <a href="https://github.com/settings/tokens/new?scopes=repo,workflow" target="_blank">Create token</a></small>
             </div>
 
             <button type="submit" id="deployBtn">Deploy Now</button>
         </form>
 
-        <div class="info">
+        <div class="info" id="selectedConfigDiv" style="display: none;">
             <strong>ℹ️ Selected Configuration:</strong>
             <div id="selectedConfig" style="margin-top: 10px; font-family: monospace;">
                 Nothing selected yet
@@ -142,17 +149,36 @@
 
     <script>
         let config = null;
-        const GITHUB_REPO = 'albertsons/your-repo'; // Change this
-        const CONFIG_URL = 'https://raw.githubusercontent.com/albertsons/your-repo/main/.github/config/deployment-options.json'; // Change this
+        const GITHUB_REPO = 'saikiranrko/testing';
+        const CONFIG_URL = 'https://raw.githubusercontent.com/saikiranrko/testing/main/.github/config/deployment-options.json';
 
         // Load configuration
         async function loadConfig() {
             try {
+                document.getElementById('loadingMsg').textContent = 'Loading configuration from GitHub...';
+                
                 const response = await fetch(CONFIG_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch config: ${response.status} ${response.statusText}`);
+                }
+                
                 config = await response.json();
+                
+                // Validate config structure
+                if (!config.regions || Object.keys(config.regions).length === 0) {
+                    throw new Error('Invalid configuration: no regions found');
+                }
+                
                 populateRegions();
+                document.getElementById('loadingMsg').style.display = 'none';
+                document.getElementById('deploymentForm').style.display = 'block';
+                document.getElementById('selectedConfigDiv').style.display = 'block';
+                
             } catch (error) {
-                showError('Failed to load configuration: ' + error.message);
+                document.getElementById('loadingMsg').style.display = 'none';
+                showError('Failed to load configuration: ' + error.message + '<br><br>Please ensure:<br>1. The config file exists at the specified path<br>2. The repository is public or you have access<br>3. The JSON is valid');
+                console.error('Config load error:', error);
             }
         }
 
@@ -181,7 +207,7 @@
             clusterSelect.disabled = true;
             namespaceSelect.disabled = true;
             
-            if (region) {
+            if (region && config.regions[region]) {
                 const environments = config.regions[region].environments;
                 Object.keys(environments).forEach(env => {
                     const option = document.createElement('option');
@@ -208,7 +234,7 @@
             namespaceSelect.innerHTML = '<option value="">-- Select Cluster First --</option>';
             namespaceSelect.disabled = true;
             
-            if (environment) {
+            if (environment && config.regions[region]?.environments[environment]) {
                 const envConfig = config.regions[region].environments[environment];
                 envConfig.clusters.forEach(cluster => {
                     const option = document.createElement('option');
@@ -231,7 +257,7 @@
             
             namespaceSelect.innerHTML = '<option value="">-- Select Namespace --</option>';
             
-            if (this.value) {
+            if (this.value && config.regions[region]?.environments[environment]) {
                 const envConfig = config.regions[region].environments[environment];
                 envConfig.namespaces.forEach(namespace => {
                     const option = document.createElement('option');
@@ -318,13 +344,15 @@
                         Cluster: ${cluster}<br>
                         Namespace: ${namespace}<br>
                         Version: ${version}<br><br>
-                        Check GitHub Actions for deployment status.
+                        <a href="https://github.com/${GITHUB_REPO}/actions" target="_blank">Check GitHub Actions →</a>
                     `);
                 } else {
-                    throw new Error(`GitHub API returned status ${response.status}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`GitHub API returned status ${response.status}: ${errorData.message || 'Unknown error'}`);
                 }
             } catch (error) {
-                showError('❌ Deployment failed: ' + error.message);
+                showError('❌ Deployment failed: ' + error.message + '<br><br>Please ensure:<br>1. Your token has repo and workflow scopes<br>2. You have access to the repository<br>3. The workflow file exists');
+                console.error('Deployment error:', error);
             } finally {
                 deployBtn.disabled = false;
                 deployBtn.textContent = 'Deploy Now';
