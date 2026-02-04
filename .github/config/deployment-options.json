@@ -1,0 +1,52 @@
+{
+  "regions": {
+    "us-east": {
+      "environments": {
+        "dev": {
+          "clusters": ["aks-dev-001", "aks-dev-002"],
+          "namespaces": ["default", "dev-team-a"]
+        },
+        "qa": {
+          "clusters": ["aks-qa-001"],
+          "namespaces": ["default", "qa-testing"]
+        },
+        "prod": {
+          "clusters": ["aks-prod-001", "aks-prod-002"],
+          "namespaces": ["default", "production"]
+        }
+      }
+    },
+    "us-west": {
+      "environments": {
+        "dev": {
+          "clusters": ["aks-dev-west-001"],
+          "namespaces": ["default"]
+        },
+        "prod": {
+          "clusters": ["aks-prod-west-001", "aks-prod-west-002"],
+          "namespaces": ["default", "production", "blue-green"]
+        }
+      }
+    },
+    "azure-central": {
+      "environments": {
+        "dev": {
+          "clusters": ["aks-central-dev-001"],
+          "namespaces": ["default", "development"]
+        },
+        "qa": {
+          "clusters": ["aks-central-qa-001"],
+          "namespaces": ["default", "qa"]
+        },
+        "uat": {
+          "clusters": ["aks-central-uat-001"],
+          "namespaces": ["default", "uat"]
+        },
+        "prod": {
+          "clusters": ["aks-central-prod-001", "aks-central-prod-002"],
+          "namespaces": ["default", "production"]
+        }
+      }
+    }
+  }
+}
