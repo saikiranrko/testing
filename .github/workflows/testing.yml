@@ -1,51 +1,43 @@
-name: Fully Dynamic Deployment
+name: Flexible Deployment
 
 on:
   workflow_dispatch:
     inputs:
-      region:
-        description: 'Enter region (e.g., us-east, us-west, azure-central)'
+      deployment_config:
+        description: 'Paste JSON config'
         type: string
         required: true
-      
-      environment:
-        description: 'Enter environment (e.g., dev, qa, uat, prod)'
-        type: string
-        required: true
-      
-      cluster:
-        description: 'Enter AKS cluster name'
-        type: string
-        required: true
-      
-      app_version:
-        description: 'Enter application version'
-        type: string
-        required: false
+        default: |
+          {
+            "region": "us-east",
+            "environment": "dev",
+            "cluster": "aks-dev-001",
+            "version": "latest"
+          }
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Display inputs
+      - name: Parse JSON config
+        id: config
         run: |
-          echo "Region: ${{ inputs.region }}"
-          echo "Environment: ${{ inputs.environment }}"
-          echo "Cluster: ${{ inputs.cluster }}"
-          echo "Version: ${{ inputs.app_version }}"
-      
-      - name: Optional - Validate inputs
-        run: |
-          # Add any validation logic if needed
-          if [[ -z "${{ inputs.region }}" ]]; then
-            echo "Region cannot be empty"
-            exit 1
-          fi
+          CONFIG='${{ inputs.deployment_config }}'
+          
+          REGION=$(echo "$CONFIG" | jq -r '.region')
+          ENV=$(echo "$CONFIG" | jq -r '.environment')
+          CLUSTER=$(echo "$CONFIG" | jq -r '.cluster')
+          VERSION=$(echo "$CONFIG" | jq -r '.version')
+          
+          echo "region=$REGION" >> $GITHUB_OUTPUT
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       
       - name: Deploy
         run: |
-          # Use the dynamic inputs
-          echo "Deploying to ${{ inputs.cluster }} in ${{ inputs.region }}"
+          echo "Deploying:"
+          echo "  Region: ${{ steps.config.outputs.region }}"
+          echo "  Environment: ${{ steps.config.outputs.environment }}"
+          echo "  Cluster: ${{ steps.config.outputs.cluster }}"
+          echo "  Version: ${{ steps.config.outputs.version }}"
