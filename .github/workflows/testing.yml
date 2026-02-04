@@ -1,0 +1,106 @@
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Select Region'
+        type: choice
+        required: true
+        options:
+          - us-east
+          - us-west
+          - azure-central
+      
+      environment:
+        description: 'Select Environment'
+        type: choice
+        required: true
+        options:
+          - dev
+          - qa
+          - uat
+          - prod
+      
+      aks_cluster:
+        description: 'Select AKS Cluster'
+        type: choice
+        required: true
+        options:
+          - aks-dev-001
+          - aks-qa-001
+          - aks-uat-001
+          - aks-prod-001
+          - aks-prod-002
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Load valid combinations
+        id: load-config
+        run: |
+          # Store valid combinations in repo
+          cat > valid-deployments.json <<'EOF'
+          {
+            "us-east": {
+              "dev": ["aks-dev-001"],
+              "qa": ["aks-qa-001"],
+              "uat": ["aks-uat-001"],
+              "prod": ["aks-prod-001"]
+            },
+            "us-west": {
+              "dev": ["aks-dev-001"],
+              "qa": ["aks-qa-001"],
+              "prod": ["aks-prod-002"]
+            },
+            "azure-central": {
+              "dev": ["aks-dev-001"],
+              "qa": ["aks-qa-001"],
+              "uat": ["aks-uat-001"],
+              "prod": ["aks-prod-001", "aks-prod-002"]
+            }
+          }
+          EOF
+      
+      - name: Validate combination
+        run: |
+          REGION="${{ inputs.region }}"
+          ENV="${{ inputs.environment }}"
+          CLUSTER="${{ inputs.aks_cluster }}"
+          
+          VALID=$(jq -r --arg r "$REGION" --arg e "$ENV" --arg c "$CLUSTER" \
+            '.[$r][$e] // [] | index($c) != null' valid-deployments.json)
+          
+          if [ "$VALID" != "true" ]; then
+            echo "❌ Invalid combination selected:"
+            echo "   Region: $REGION"
+            echo "   Environment: $ENV"
+            echo "   Cluster: $CLUSTER"
+            echo ""
+            echo "Valid clusters for $REGION/$ENV:"
+            jq -r --arg r "$REGION" --arg e "$ENV" '.[$r][$e] // [] | .[]' valid-deployments.json
+            exit 1
+          fi
+          
+          echo "✅ Valid combination: $REGION/$ENV/$CLUSTER"
+      
+      - name: Set deployment variables
+        id: vars
+        run: |
+          echo "region=${{ inputs.region }}" >> $GITHUB_OUTPUT
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          echo "cluster=${{ inputs.aks_cluster }}" >> $GITHUB_OUTPUT
+      
+      - name: Deploy to AKS
+        run: |
+          echo "Deploying to:"
+          echo "  Region: ${{ steps.vars.outputs.region }}"
+          echo "  Environment: ${{ steps.vars.outputs.environment }}"
+          echo "  Cluster: ${{ steps.vars.outputs.cluster }}"
+          
+          # Your actual deployment logic here
+          # kubectl apply -f deployment.yaml --context=${{ steps.vars.outputs.cluster }}
