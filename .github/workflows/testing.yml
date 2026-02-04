@@ -1,43 +1,64 @@
-name: Flexible Deployment
+name: Dynamic Deployment
 
 on:
-  workflow_dispatch:
-    inputs:
-      deployment_config:
-        description: 'Paste JSON config'
-        type: string
-        required: true
-        default: |
-          {
-            "region": "us-east",
-            "environment": "dev",
-            "cluster": "aks-dev-001",
-            "version": "latest"
-          }
+  repository_dispatch:
+    types: [deploy]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Parse JSON config
-        id: config
-        run: |
-          CONFIG='${{ inputs.deployment_config }}'
-          
-          REGION=$(echo "$CONFIG" | jq -r '.region')
-          ENV=$(echo "$CONFIG" | jq -r '.environment')
-          CLUSTER=$(echo "$CONFIG" | jq -r '.cluster')
-          VERSION=$(echo "$CONFIG" | jq -r '.version')
-          
-          echo "region=$REGION" >> $GITHUB_OUTPUT
-          echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v4
       
-      - name: Deploy
+      - name: Display Configuration
         run: |
-          echo "Deploying:"
-          echo "  Region: ${{ steps.config.outputs.region }}"
-          echo "  Environment: ${{ steps.config.outputs.environment }}"
-          echo "  Cluster: ${{ steps.config.outputs.cluster }}"
-          echo "  Version: ${{ steps.config.outputs.version }}"
+          echo "=== Deployment Configuration ==="
+          echo "Region: ${{ github.event.client_payload.region }}"
+          echo "Environment: ${{ github.event.client_payload.environment }}"
+          echo "Cluster: ${{ github.event.client_payload.cluster }}"
+          echo "Namespace: ${{ github.event.client_payload.namespace }}"
+          echo "Version: ${{ github.event.client_payload.version }}"
+          echo "Triggered by: ${{ github.event.client_payload.triggered_by }}"
+          echo "Timestamp: ${{ github.event.client_payload.timestamp }}"
+      
+      - name: Validate Configuration
+        run: |
+          # Load the config file
+          CONFIG_FILE=".github/config/deployment-options.json"
+          
+          REGION="${{ github.event.client_payload.region }}"
+          ENV="${{ github.event.client_payload.environment }}"
+          CLUSTER="${{ github.event.client_payload.cluster }}"
+          NAMESPACE="${{ github.event.client_payload.namespace }}"
+          
+          # Validate cluster exists for this region/environment
+          VALID_CLUSTER=$(jq -r --arg r "$REGION" --arg e "$ENV" --arg c "$CLUSTER" \
+            '.regions[$r].environments[$e].clusters | index($c) != null' $CONFIG_FILE)
+          
+          if [ "$VALID_CLUSTER" != "true" ]; then
+            echo "❌ Invalid cluster for $REGION/$ENV"
+            exit 1
+          fi
+          
+          # Validate namespace
+          VALID_NAMESPACE=$(jq -r --arg r "$REGION" --arg e "$ENV" --arg n "$NAMESPACE" \
+            '.regions[$r].environments[$e].namespaces | index($n) != null' $CONFIG_FILE)
+          
+          if [ "$VALID_NAMESPACE" != "true" ]; then
+            echo "❌ Invalid namespace for $REGION/$ENV"
+            exit 1
+          fi
+          
+          echo "✅ Configuration validated successfully"
+      
+      - name: Deploy to AKS
+        run: |
+          echo "🚀 Deploying to AKS..."
+          echo "Cluster: ${{ github.event.client_payload.cluster }}"
+          echo "Namespace: ${{ github.event.client_payload.namespace }}"
+          echo "Version: ${{ github.event.client_payload.version }}"
+          
+          # Your actual deployment commands here
+          # az aks get-credentials --name ${{ github.event.client_payload.cluster }} --resource-group rg-${{ github.event.client_payload.environment }}
+          # kubectl apply -f deployment.yaml --namespace=${{ github.event.client_payload.namespace }}
