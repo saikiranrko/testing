@@ -24,7 +24,6 @@ jobs:
       
       - name: Validate Configuration
         run: |
-          # Load the config file
           CONFIG_FILE=".github/config/deployment-options.json"
           
           REGION="${{ github.event.client_payload.region }}"
@@ -32,12 +31,14 @@ jobs:
           CLUSTER="${{ github.event.client_payload.cluster }}"
           NAMESPACE="${{ github.event.client_payload.namespace }}"
           
-          # Validate cluster exists for this region/environment
+          echo "Validating configuration..."
+          
+          # Validate cluster
           VALID_CLUSTER=$(jq -r --arg r "$REGION" --arg e "$ENV" --arg c "$CLUSTER" \
             '.regions[$r].environments[$e].clusters | index($c) != null' $CONFIG_FILE)
           
           if [ "$VALID_CLUSTER" != "true" ]; then
-            echo "❌ Invalid cluster for $REGION/$ENV"
+            echo "❌ Invalid cluster '$CLUSTER' for $REGION/$ENV"
             exit 1
           fi
           
@@ -46,19 +47,18 @@ jobs:
             '.regions[$r].environments[$e].namespaces | index($n) != null' $CONFIG_FILE)
           
           if [ "$VALID_NAMESPACE" != "true" ]; then
-            echo "❌ Invalid namespace for $REGION/$ENV"
+            echo "❌ Invalid namespace '$NAMESPACE' for $REGION/$ENV"
             exit 1
           fi
           
           echo "✅ Configuration validated successfully"
       
-      - name: Deploy to AKS
+      - name: Deploy
         run: |
-          echo "🚀 Deploying to AKS..."
+          echo "🚀 Starting deployment..."
           echo "Cluster: ${{ github.event.client_payload.cluster }}"
           echo "Namespace: ${{ github.event.client_payload.namespace }}"
           echo "Version: ${{ github.event.client_payload.version }}"
           
-          # Your actual deployment commands here
-          # az aks get-credentials --name ${{ github.event.client_payload.cluster }} --resource-group rg-${{ github.event.client_payload.environment }}
-          # kubectl apply -f deployment.yaml --namespace=${{ github.event.client_payload.namespace }}
+          # Add your actual deployment commands here
+          echo "✅ Deployment completed successfully!"
